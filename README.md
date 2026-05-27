@@ -95,7 +95,7 @@ All entries use TTL bump threshold ≈ 30 days and target ≈ 5.2 years so a max
         ├── errors.rs       # VaultError enum (8 typed codes)
         ├── events.rs       # Event emission helpers
         ├── storage.rs      # Persistent storage helpers + TTL bump logic
-        └── test.rs         # Full unit test suite (35+ tests)
+        └── test.rs         # Full unit test suite (48+ tests)
 ```
 
 ---
@@ -173,6 +173,19 @@ Returns the effective `(MAX_DEPOSIT_AMOUNT, MAX_LOCK_DURATION_SECS)` for this de
 
 #### `get_fee_recipient() → Option<Address>`
 Returns the fee recipient address set at initialization.
+
+#### `get_depositor_count() → u32`
+Returns the total number of addresses with an active deposit.
+
+#### `get_depositors(offset: u32, limit: u32) → Vec<Address>`
+Returns a paginated slice of active depositor addresses.
+
+| Param | Type | Description |
+|---|---|---|
+| `offset` | `u32` | Zero-based start index |
+| `limit` | `u32` | Maximum number of addresses to return |
+
+Use `offset=0, limit=N` for the first page, then increment `offset` by `N` for subsequent pages.
 
 ---
 

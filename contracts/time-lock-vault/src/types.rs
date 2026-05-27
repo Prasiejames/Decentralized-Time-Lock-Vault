@@ -30,6 +30,8 @@ pub enum VaultKey {
     Deposit(Address),
     Admin,
     PendingAdmin,
+    /// Global list of all active depositor addresses (Vec<Address>)
+    DepositorList,
     /// Address that receives penalty fees on early cancellation
     FeeRecipient,
     /// Runtime-configurable max deposit amount (overrides compile-time constant).
