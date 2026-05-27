@@ -87,7 +87,6 @@ fn test_deposit_success() {
     assert_eq!(entry.amount, 1_000);
     assert_eq!(entry.unlock_time, unlock_time);
     assert_eq!(entry.token, token);
-    assert_eq!(entry.depositor, alice);
 }
 
 #[test]

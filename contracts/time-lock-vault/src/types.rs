@@ -40,6 +40,8 @@ pub enum VaultKey {
 // ----------------------------------------------------------------
 
 /// Represents a single vault deposit.
+/// The depositor address is not stored here — it is already the storage key
+/// (VaultKey::Deposit(Address)), so duplicating it wastes persistent storage.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VaultEntry {
@@ -52,7 +54,4 @@ pub struct VaultEntry {
 
     /// Unix timestamp (seconds) after which withdrawal is permitted.
     pub unlock_time: u64,
-
-    /// The depositor's address — stored for convenience and event emission.
-    pub depositor: Address,
 }
