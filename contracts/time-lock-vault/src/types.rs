@@ -29,6 +29,8 @@ pub enum VaultKey {
     Admin,
     /// Pending admin address during a two-step admin transfer
     PendingAdmin,
+    /// Address that receives penalty fees on early cancellation
+    FeeRecipient,
 }
 
 // ----------------------------------------------------------------
@@ -51,4 +53,8 @@ pub struct VaultEntry {
 
     /// The depositor's address — stored for convenience and event emission.
     pub depositor: Address,
+
+    /// Early-exit penalty in basis points (0–10000). Charged on cancel_deposit.
+    /// 0 = free cancellation, 10000 = 100% penalty (all funds go to fee_recipient).
+    pub penalty_bps: u32,
 }

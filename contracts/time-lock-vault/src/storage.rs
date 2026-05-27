@@ -98,3 +98,20 @@ pub fn remove_pending_admin(env: &Env) {
         .persistent()
         .remove(&VaultKey::PendingAdmin);
 }
+
+// ----------------------------------------------------------------
+//  Fee recipient helpers
+// ----------------------------------------------------------------
+
+pub fn set_fee_recipient(env: &Env, recipient: &Address) {
+    env.storage()
+        .persistent()
+        .set(&VaultKey::FeeRecipient, recipient);
+    env.storage()
+        .persistent()
+        .extend_ttl(&VaultKey::FeeRecipient, BUMP_THRESHOLD, BUMP_TARGET);
+}
+
+pub fn get_fee_recipient(env: &Env) -> Option<Address> {
+    env.storage().persistent().get(&VaultKey::FeeRecipient)
+}
