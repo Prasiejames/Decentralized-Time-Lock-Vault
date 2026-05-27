@@ -134,7 +134,7 @@ fn test_deposit_transfers_tokens_to_contract() {
     let (env, vault, token, _admin, alice, _fee) = setup();
     let token_client = TokenClient::new(&env, &token);
     let unlock_time = env.ledger().timestamp() + 3600;
-    vault.deposit(&alice, &token, &1_000, &unlock_time);
+    vault.deposit(&alice, &token, &1_000, &unlock_time, &0);
 
     vault.deposit(&alice, &token, &1_000, &unlock_time, &0);
     assert_eq!(token_client.balance(&alice), 9_000);
@@ -381,7 +381,7 @@ fn test_withdraw_after_unlock_succeeds() {
 fn test_withdraw_exactly_at_unlock_time_succeeds() {
     let (env, vault, token, _admin, alice, _fee) = setup();
     let unlock_time = env.ledger().timestamp() + 3600;
-    vault.deposit(&alice, &token, &1_000, &unlock_time);
+    vault.deposit(&alice, &token, &1_000, &unlock_time, &0);
 
     advance_time(&env, 3600);
     vault.withdraw(&alice, &0);
@@ -542,7 +542,7 @@ fn test_emergency_withdraw_by_admin_before_unlock_succeeds() {
     let (env, vault, token, admin, alice, _fee) = setup();
     let token_client = TokenClient::new(&env, &token);
     let unlock_time = env.ledger().timestamp() + 86400;
-    vault.deposit(&alice, &token, &2_000, &unlock_time);
+    vault.deposit(&alice, &token, &2_000, &unlock_time, &0);
 
     vault.emergency_withdraw(&admin, &alice, &0);
 
@@ -570,7 +570,7 @@ fn test_emergency_withdraw_by_non_admin_fails() {
     let (env, vault, token, _admin, alice, _fee) = setup();
     let bob: Address = Address::generate(&env);
     let unlock_time = env.ledger().timestamp() + 86400;
-    vault.deposit(&alice, &token, &2_000, &unlock_time);
+    vault.deposit(&alice, &token, &2_000, &unlock_time, &0);
 
     let result = vault.try_emergency_withdraw(&bob, &alice, &0);
     assert_eq!(result, Err(Ok(VaultError::Unauthorized)));
@@ -721,7 +721,7 @@ fn test_new_admin_can_emergency_withdraw_after_transfer() {
     let new_admin: Address = Address::generate(&env);
     let token_client = TokenClient::new(&env, &token);
     let unlock_time = env.ledger().timestamp() + 86400;
-    vault.deposit(&alice, &token, &1_000, &unlock_time);
+    vault.deposit(&alice, &token, &1_000, &unlock_time, &0);
 
     vault.transfer_admin(&admin, &new_admin);
     vault.accept_admin(&new_admin);

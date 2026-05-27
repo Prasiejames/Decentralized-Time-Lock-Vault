@@ -170,11 +170,27 @@ Returns the current admin, or `None` if renounced.
 #### `get_pending_admin() → Option<Address>`
 Returns the pending admin during a transfer, or `None`.
 
+#### `get_fee_recipient() → Option<Address>`
+Returns the fee recipient address set at initialization.
+
 #### `get_constants() → (i128, u64)`
 Returns the effective `(MAX_DEPOSIT_AMOUNT, MAX_LOCK_DURATION_SECS)` for this deployment — runtime-configured values if set at `initialize`, otherwise the compile-time defaults.
 
 #### `get_fee_recipient() → Option<Address>`
 Returns the fee recipient address set at initialization.
+
+#### `get_depositor_count() → u32`
+Returns the total number of addresses with an active deposit.
+
+#### `get_depositors(offset: u32, limit: u32) → Vec<Address>`
+Returns a paginated slice of active depositor addresses.
+
+| Param | Type | Description |
+|---|---|---|
+| `offset` | `u32` | Zero-based start index |
+| `limit` | `u32` | Maximum number of addresses to return |
+
+Use `offset=0, limit=N` for the first page, then increment `offset` by `N` for subsequent pages.
 
 #### `get_depositor_count() → u32`
 Returns the total number of addresses with an active deposit.

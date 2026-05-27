@@ -22,11 +22,13 @@ impl TimeLockVault {
     /// Must be called once immediately after deployment.
     ///
     /// # Arguments
-    /// * `admin` — Address that gains emergency-withdrawal and admin privileges.
+    /// * `admin`         — Address that gains emergency-withdrawal and admin privileges.
+    /// * `fee_recipient` — Address that receives penalty fees on early cancellation.
     ///
     /// # Errors
     /// * `Unauthorized` — Contract has already been initialized.
     pub fn initialize(env: Env, admin: Address, fee_recipient: Address) -> Result<(), VaultError> {
+        // FIX: require_auth FIRST before any state reads (correct Soroban pattern).
     pub fn initialize(
         env: Env,
         admin: Address,
@@ -123,6 +125,9 @@ impl TimeLockVault {
         // --- Maintain global depositor list ---
         storage::add_depositor(&env, &depositor);
 
+        // --- Maintain global depositor list ---
+        storage::add_depositor(&env, &depositor);
+
         // --- Emit event ---
         events::deposit(&env, &depositor, &token, amount, unlock_time);
 
@@ -153,6 +158,59 @@ impl TimeLockVault {
         let token_client = token::Client::new(&env, &entry.token);
         let contract = env.current_contract_address();
 
+        let penalty: i128 = (entry.amount * entry.penalty_bps as i128) / 10_000;
+        let refund = entry.amount - penalty;
+
+        if penalty > 0 {
+            let fee_recipient = storage::get_fee_recipient(&env)
+                .unwrap_or_else(|| depositor.clone());
+            token_client.transfer(&contract, &fee_recipient, &penalty);
+        }
+        if refund > 0 {
+            token_client.transfer(&contract, &depositor, &refund);
+        }
+
+        events::deposit_cancelled(&env, &depositor, &entry.token, entry.amount, penalty);
+
+        Ok(())
+    }
+
+    // ----------------------------------------------------------------
+    //  Core: Cancel Deposit (early exit with penalty)
+    // ----------------------------------------------------------------
+
+    /// Cancel an active deposit before the unlock time, paying a penalty.
+    ///
+    /// The penalty (stored as `penalty_bps` at deposit time) is sent to the
+    /// `fee_recipient`. The remainder is returned to the depositor.
+    /// If the vault is already unlocked, use `withdraw` instead.
+    ///
+    /// # Arguments
+    /// * `depositor` — The address that originally deposited (must sign).
+    ///
+    /// # Errors
+    /// * `NoDepositFound`   — No active deposit for this address.
+    /// * `FundsStillLocked` — Vault is already past unlock time; use `withdraw`.
+    pub fn cancel_deposit(env: Env, depositor: Address) -> Result<(), VaultError> {
+        depositor.require_auth();
+
+        let entry = storage::get_deposit(&env, &depositor)
+            .ok_or(VaultError::NoDepositFound)?;
+
+        // Cancellation is only valid while still locked.
+        let now = env.ledger().timestamp();
+        if now >= entry.unlock_time {
+            return Err(VaultError::FundsStillLocked);
+        }
+
+        // --- Checks-Effects-Interactions ---
+        storage::remove_deposit(&env, &depositor);
+        storage::remove_depositor(&env, &depositor);
+
+        let token_client = token::Client::new(&env, &entry.token);
+        let contract = env.current_contract_address();
+
+        // penalty = amount * penalty_bps / 10_000  (integer, rounds down)
         let penalty: i128 = (entry.amount * entry.penalty_bps as i128) / 10_000;
         let refund = entry.amount - penalty;
 
@@ -372,5 +430,28 @@ impl TimeLockVault {
 
     pub fn is_initialized(env: Env) -> bool {
         storage::is_initialized(&env)
+    }
+
+    /// Returns the fee recipient address, or `None` if not set.
+    pub fn get_fee_recipient(env: Env) -> Option<Address> {
+        storage::get_fee_recipient(&env)
+    }
+
+    // ----------------------------------------------------------------
+    //  Admin Tooling: Depositor Enumeration
+    // ----------------------------------------------------------------
+
+    /// Returns the total number of active depositors.
+    pub fn get_depositor_count(env: Env) -> u32 {
+        storage::get_depositor_count(&env)
+    }
+
+    /// Returns a paginated slice of active depositor addresses.
+    ///
+    /// # Arguments
+    /// * `offset` — Zero-based start index.
+    /// * `limit`  — Maximum number of addresses to return.
+    pub fn get_depositors(env: Env, offset: u32, limit: u32) -> Vec<Address> {
+        storage::get_depositors_page(&env, offset, limit)
     }
 }
