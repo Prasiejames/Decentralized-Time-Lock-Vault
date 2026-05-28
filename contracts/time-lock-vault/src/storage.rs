@@ -108,35 +108,27 @@ pub fn remove_deposit(env: &Env, depositor: &Address, deposit_id: u32) {
 
 /// Persists `admin` under `VaultKey::Admin` and bumps TTL.
 pub fn set_admin(env: &Env, admin: &Address) {
-    env.storage().persistent().set(&VaultKey::Admin, admin);
-    env.storage()
-        .persistent()
-        .extend_ttl(&VaultKey::Admin, BUMP_THRESHOLD, BUMP_TARGET);
+    env.storage().instance().set(&VaultKey::Admin, admin);
 }
 
 /// Returns the current admin address, or `None` if admin has been renounced.
 pub fn get_admin(env: &Env) -> Option<Address> {
-    env.storage().persistent().get(&VaultKey::Admin)
+    env.storage().instance().get(&VaultKey::Admin)
 }
 
 /// Stores the nominated `pending` admin during a two-step transfer and bumps TTL.
 pub fn set_pending_admin(env: &Env, pending: &Address) {
-    env.storage()
-        .persistent()
-        .set(&VaultKey::PendingAdmin, pending);
-    env.storage()
-        .persistent()
-        .extend_ttl(&VaultKey::PendingAdmin, BUMP_THRESHOLD, BUMP_TARGET);
+    env.storage().instance().set(&VaultKey::PendingAdmin, pending);
 }
 
 /// Returns the pending admin address, or `None` if no transfer is in progress.
 pub fn get_pending_admin(env: &Env) -> Option<Address> {
-    env.storage().persistent().get(&VaultKey::PendingAdmin)
+    env.storage().instance().get(&VaultKey::PendingAdmin)
 }
 
 /// Clears the pending admin entry (called on accept or cancel of a transfer).
 pub fn remove_pending_admin(env: &Env) {
-    env.storage().persistent().remove(&VaultKey::PendingAdmin);
+    env.storage().instance().remove(&VaultKey::PendingAdmin);
 }
 
 pub fn require_admin(env: &Env, caller: &Address) -> Result<(), VaultError> {
