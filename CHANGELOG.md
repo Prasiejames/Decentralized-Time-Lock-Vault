@@ -70,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 |-------|--------|------|
 | `deposit` | `("deposit", depositor, token)` | `(deposit_id, amount, unlock_time)` |
 | `withdraw` | `("withdraw", depositor, token)` | `(deposit_id, amount)` |
-| `emrg_wdraw` | `("emrg_wdraw", admin, depositor)` | `(deposit_id, token, amount)` |
+| `emrg_wdraw` | `("emrg_wdraw", depositor)` | `(deposit_id, admin, token, amount)` |
 | `dep_cancel` | `("dep_cancel", depositor, token)` | `(amount, penalty)` |
 | `adm_xfr_init` | `("adm_xfr_init", current_admin)` | `pending_admin` |
 | `adm_xfr_done` | `("adm_xfr_done", new_admin)` | `()` |
