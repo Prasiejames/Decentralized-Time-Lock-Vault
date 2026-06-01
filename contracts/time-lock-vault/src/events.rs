@@ -17,12 +17,11 @@ pub fn emergency_withdraw(
     token: &Address,
     amount: i128,
 ) {
-    let topics = (
-        Symbol::new(env, "emrg_wdraw"),
-        admin.clone(),
-        depositor.clone(),
-    );
-    env.events().publish(topics, (token.clone(), amount));
+    // admin is placed in the data payload rather than topics to avoid
+    // leaking the admin address in the publicly-indexed event topic stream.
+    let topics = (Symbol::new(env, "emrg_wdraw"), depositor.clone());
+    env.events()
+        .publish(topics, (admin.clone(), token.clone(), amount));
 }
 
 pub fn admin_transfer_initiated(env: &Env, current_admin: &Address, pending_admin: &Address) {

@@ -694,17 +694,13 @@ fn test_emergency_withdraw_by_admin_before_unlock_succeeds() {
 
     let events = env.events().all();
     let last = events.last().unwrap();
+    // admin is in the data payload, not topics, to avoid leaking it publicly
     assert_eq!(
         last,
         (
             vault.address.clone(),
-            (
-                Symbol::new(&env, "emrg_wdraw"),
-                admin.clone(),
-                alice.clone()
-            )
-                .into_val(&env),
-            (0_u32, token.clone(), 2_000_i128).into_val(&env),
+            (Symbol::new(&env, "emrg_wdraw"), alice.clone()).into_val(&env),
+            (0_u32, admin.clone(), token.clone(), 2_000_i128).into_val(&env),
         )
     );
 }
