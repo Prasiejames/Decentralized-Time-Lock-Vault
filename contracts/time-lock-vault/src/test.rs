@@ -1445,3 +1445,223 @@ fn test_full_lifecycle_deposit_withdraw_redeposit() {
     assert!(vault.get_vault(&alice, &new_id).is_some());
     assert_eq!(vault.get_vault(&alice, &new_id).unwrap().amount, 500);
 }
+
+// ================================================================
+//  Ledger-based deposits (deposit_by_ledger)
+// ================================================================
+
+fn advance_ledger(env: &Env, ledgers: u32) {
+    env.ledger().set(LedgerInfo {
+        timestamp: env.ledger().timestamp(),
+        protocol_version: env.ledger().protocol_version(),
+        sequence_number: env.ledger().sequence() + ledgers,
+        network_id: Default::default(),
+        base_reserve: 10,
+        min_temp_entry_ttl: 16,
+        min_persistent_entry_ttl: 4096,
+        max_entry_ttl: 33_000_000,
+    });
+}
+
+#[test]
+fn test_deposit_by_ledger_success() {
+    let (env, vault, token, _admin, alice, _fee) = setup();
+    let unlock_ledger = env.ledger().sequence() + 100;
+    let id = vault.deposit_by_ledger(&alice, &token, &1_000, &unlock_ledger, &0);
+    assert_eq!(id, 0);
+}
+
+#[test]
+fn test_deposit_by_ledger_zero_amount_fails() {
+    let (env, vault, token, _admin, alice, _fee) = setup();
+    let unlock_ledger = env.ledger().sequence() + 100;
+    assert_eq!(
+        vault.try_deposit_by_ledger(&alice, &token, &0, &unlock_ledger, &0),
+        Err(Ok(VaultError::InvalidAmount))
+    );
+}
+
+#[test]
+fn test_deposit_by_ledger_unlock_not_in_future_fails() {
+    let (env, vault, token, _admin, alice, _fee) = setup();
+    let current_ledger = env.ledger().sequence();
+    assert_eq!(
+        vault.try_deposit_by_ledger(&alice, &token, &1_000, &current_ledger, &0),
+        Err(Ok(VaultError::UnlockTimeNotInFuture))
+    );
+}
+
+#[test]
+fn test_deposit_by_ledger_invalid_penalty_fails() {
+    let (env, vault, token, _admin, alice, _fee) = setup();
+    let unlock_ledger = env.ledger().sequence() + 100;
+    assert_eq!(
+        vault.try_deposit_by_ledger(&alice, &token, &1_000, &unlock_ledger, &10_001),
+        Err(Ok(VaultError::InvalidPenaltyBps))
+    );
+}
+
+#[test]
+fn test_withdraw_ledger_deposit_after_unlock_succeeds() {
+    let (env, vault, token, _admin, alice, _fee) = setup();
+    let token_client = TokenClient::new(&env, &token);
+    let unlock_ledger = env.ledger().sequence() + 10;
+    let id = vault.deposit_by_ledger(&alice, &token, &1_000, &unlock_ledger, &0);
+
+    advance_ledger(&env, 10);
+    vault.withdraw(&alice, &id);
+
+    assert!(vault.get_vault(&alice, &id).is_none());
+    assert_eq!(token_client.balance(&alice), 10_000);
+}
+
+#[test]
+fn test_withdraw_ledger_deposit_before_unlock_fails() {
+    let (env, vault, token, _admin, alice, _fee) = setup();
+    let unlock_ledger = env.ledger().sequence() + 100;
+    let id = vault.deposit_by_ledger(&alice, &token, &1_000, &unlock_ledger, &0);
+
+    assert_eq!(
+        vault.try_withdraw(&alice, &id),
+        Err(Ok(VaultError::FundsStillLocked))
+    );
+}
+
+// ================================================================
+//  withdraw_to — time-based deposits
+// ================================================================
+
+#[test]
+fn test_withdraw_to_time_deposit_sends_to_recipient() {
+    let (env, vault, token, _admin, alice, _fee) = setup();
+    let bob: Address = Address::generate(&env);
+    let token_client = TokenClient::new(&env, &token);
+    let unlock_time = env.ledger().timestamp() + 3600;
+
+    let id = vault.deposit(&alice, &token, &1_000, &unlock_time, &0);
+    advance_time(&env, 3600);
+
+    vault.withdraw_to(&alice, &id, &bob);
+
+    assert!(vault.get_vault(&alice, &id).is_none());
+    assert_eq!(token_client.balance(&bob), 1_000);
+    assert_eq!(token_client.balance(&alice), 9_000);
+}
+
+#[test]
+fn test_withdraw_to_time_deposit_before_unlock_fails() {
+    let (env, vault, token, _admin, alice, _fee) = setup();
+    let bob: Address = Address::generate(&env);
+    let unlock_time = env.ledger().timestamp() + 3600;
+
+    let id = vault.deposit(&alice, &token, &1_000, &unlock_time, &0);
+
+    assert_eq!(
+        vault.try_withdraw_to(&alice, &id, &bob),
+        Err(Ok(VaultError::FundsStillLocked))
+    );
+}
+
+#[test]
+fn test_withdraw_to_no_deposit_fails() {
+    let (env, vault, _token, _admin, alice, _fee) = setup();
+    let bob: Address = Address::generate(&env);
+    assert_eq!(
+        vault.try_withdraw_to(&alice, &0, &bob),
+        Err(Ok(VaultError::NoDepositFound))
+    );
+}
+
+// ================================================================
+//  withdraw_to — ledger-based deposits (Task 4 regression coverage)
+// ================================================================
+
+#[test]
+fn test_withdraw_to_ledger_deposit_sends_to_recipient() {
+    let (env, vault, token, _admin, alice, _fee) = setup();
+    let bob: Address = Address::generate(&env);
+    let token_client = TokenClient::new(&env, &token);
+    let unlock_ledger = env.ledger().sequence() + 10;
+
+    let id = vault.deposit_by_ledger(&alice, &token, &2_000, &unlock_ledger, &0);
+    advance_ledger(&env, 10);
+
+    vault.withdraw_to(&alice, &id, &bob);
+
+    assert!(vault.get_vault(&alice, &id).is_none());
+    assert_eq!(token_client.balance(&bob), 2_000);
+    assert_eq!(token_client.balance(&alice), 8_000);
+}
+
+#[test]
+fn test_withdraw_to_ledger_deposit_before_unlock_fails() {
+    let (env, vault, token, _admin, alice, _fee) = setup();
+    let bob: Address = Address::generate(&env);
+    let unlock_ledger = env.ledger().sequence() + 100;
+
+    let id = vault.deposit_by_ledger(&alice, &token, &1_000, &unlock_ledger, &0);
+
+    assert_eq!(
+        vault.try_withdraw_to(&alice, &id, &bob),
+        Err(Ok(VaultError::FundsStillLocked))
+    );
+}
+
+#[test]
+fn test_withdraw_to_ledger_deposit_removes_depositor_when_last() {
+    let (env, vault, token, _admin, alice, _fee) = setup();
+    let bob: Address = Address::generate(&env);
+    let unlock_ledger = env.ledger().sequence() + 5;
+
+    vault.deposit_by_ledger(&alice, &token, &500, &unlock_ledger, &0);
+    assert_eq!(vault.get_depositor_count(), 1);
+
+    advance_ledger(&env, 5);
+    vault.withdraw_to(&alice, &0, &bob);
+
+    assert_eq!(vault.get_depositor_count(), 0);
+}
+
+// ================================================================
+//  Pause / Unpause
+// ================================================================
+
+#[test]
+fn test_pause_blocks_deposit() {
+    let (env, vault, token, admin, alice, _fee) = setup();
+    vault.pause(&admin);
+    let unlock_time = env.ledger().timestamp() + 3600;
+    assert_eq!(
+        vault.try_deposit(&alice, &token, &1_000, &unlock_time, &0),
+        Err(Ok(VaultError::ContractPaused))
+    );
+}
+
+#[test]
+fn test_unpause_allows_deposit() {
+    let (env, vault, token, admin, alice, _fee) = setup();
+    vault.pause(&admin);
+    vault.unpause(&admin);
+    let unlock_time = env.ledger().timestamp() + 3600;
+    let id = vault.deposit(&alice, &token, &1_000, &unlock_time, &0);
+    assert!(vault.get_vault(&alice, &id).is_some());
+}
+
+#[test]
+fn test_pause_by_non_admin_fails() {
+    let (env, vault, _token, _admin, alice, _fee) = setup();
+    assert_eq!(
+        vault.try_pause(&alice),
+        Err(Ok(VaultError::Unauthorized))
+    );
+}
+
+#[test]
+fn test_is_paused_reflects_state() {
+    let (env, vault, _token, admin, _alice, _fee) = setup();
+    assert!(!vault.is_paused());
+    vault.pause(&admin);
+    assert!(vault.is_paused());
+    vault.unpause(&admin);
+    assert!(!vault.is_paused());
+}

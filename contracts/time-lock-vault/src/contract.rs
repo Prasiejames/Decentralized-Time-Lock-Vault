@@ -329,24 +329,45 @@ impl TimeLockVault {
     ) -> Result<(), VaultError> {
         depositor.require_auth();
 
-        let entry = storage::get_deposit_readonly(&env, &depositor, deposit_id)
-            .ok_or(VaultError::NoDepositFound)?;
+        // Try timestamp-based deposit first
+        if let Some(entry) = storage::get_deposit_readonly(&env, &depositor, deposit_id) {
+            let now = env.ledger().timestamp();
+            if now < entry.unlock_time {
+                return Err(VaultError::FundsStillLocked);
+            }
 
-        let now = env.ledger().timestamp();
-        if now < entry.unlock_time {
-            return Err(VaultError::FundsStillLocked);
+            storage::remove_deposit(&env, &depositor, deposit_id);
+            if storage::get_deposit_ids(&env, &depositor).len() == 0 {
+                storage::remove_depositor(&env, &depositor);
+            }
+
+            let token_client = token::Client::new(&env, &entry.token);
+            token_client.transfer(&env.current_contract_address(), &recipient, &entry.amount);
+
+            events::withdraw_to(&env, &depositor, &recipient, &entry.token, entry.amount);
+            return Ok(());
         }
 
-        storage::remove_deposit(&env, &depositor, deposit_id);
-        if storage::get_deposit_ids(&env, &depositor).len() == 0 {
-            storage::remove_depositor(&env, &depositor);
+        // Try ledger-based deposit
+        if let Some(entry) = storage::get_deposit_by_ledger_readonly(&env, &depositor, deposit_id) {
+            let current_ledger = env.ledger().sequence();
+            if current_ledger < entry.unlock_ledger {
+                return Err(VaultError::FundsStillLocked);
+            }
+
+            storage::remove_deposit_by_ledger(&env, &depositor, deposit_id);
+            if storage::get_deposit_ids(&env, &depositor).len() == 0 {
+                storage::remove_depositor(&env, &depositor);
+            }
+
+            let token_client = token::Client::new(&env, &entry.token);
+            token_client.transfer(&env.current_contract_address(), &recipient, &entry.amount);
+
+            events::withdraw_to(&env, &depositor, &recipient, &entry.token, entry.amount);
+            return Ok(());
         }
 
-        let token_client = token::Client::new(&env, &entry.token);
-        token_client.transfer(&env.current_contract_address(), &recipient, &entry.amount);
-
-        events::withdraw_to(&env, &depositor, &recipient, &entry.token, entry.amount);
-        Ok(())
+        Err(VaultError::NoDepositFound)
     }
 
     // ----------------------------------------------------------------

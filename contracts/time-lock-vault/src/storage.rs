@@ -106,6 +106,13 @@ pub fn get_admin(env: &Env) -> Option<Address> {
     env.storage().persistent().get(&VaultKey::Admin)
 }
 
+pub fn require_admin(env: &Env, caller: &Address) -> Result<(), crate::errors::VaultError> {
+    match get_admin(env) {
+        Some(admin) if &admin == caller => Ok(()),
+        _ => Err(crate::errors::VaultError::Unauthorized),
+    }
+}
+
 pub fn remove_admin(env: &Env) {
     env.storage().persistent().remove(&VaultKey::Admin);
 }
