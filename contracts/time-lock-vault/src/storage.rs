@@ -1,6 +1,6 @@
 use soroban_sdk::{Address, Env, Vec};
 
-use crate::constants::MAX_LOCK_DURATION_SECS;
+use crate::constants::{MAX_BATCH_SIZE, MAX_LOCK_DURATION_SECS};
 use crate::types::{LedgerVaultEntry, VaultEntry, VaultKey};
 
 // Number of seconds per ledger — Soroban ledgers are ~5 seconds apart.
@@ -29,8 +29,11 @@ pub fn get_deposit_ids(env: &Env, depositor: &Address) -> Vec<u32> {
     let count: u32 = env.storage().persistent().get(&counter_key).unwrap_or(0);
     let mut ids = Vec::new(env);
     for id in 0..count {
-        let key = VaultKey::Deposit(depositor.clone(), id);
-        if env.storage().persistent().has(&key) {
+        let ts_key = VaultKey::Deposit(depositor.clone(), id);
+        let lb_key = VaultKey::DepositByLedger(depositor.clone(), id);
+        if env.storage().persistent().has(&ts_key)
+            || env.storage().persistent().has(&lb_key)
+        {
             ids.push_back(id);
         }
     }
@@ -41,8 +44,11 @@ pub fn has_any_deposit(env: &Env, depositor: &Address) -> bool {
     let counter_key = VaultKey::DepositCounter(depositor.clone());
     let count: u32 = env.storage().persistent().get(&counter_key).unwrap_or(0);
     for id in 0..count {
-        let key = VaultKey::Deposit(depositor.clone(), id);
-        if env.storage().persistent().has(&key) {
+        let ts_key = VaultKey::Deposit(depositor.clone(), id);
+        let lb_key = VaultKey::DepositByLedger(depositor.clone(), id);
+        if env.storage().persistent().has(&ts_key)
+            || env.storage().persistent().has(&lb_key)
+        {
             return true;
         }
     }
@@ -280,8 +286,9 @@ pub fn is_paused(env: &Env) -> bool {
 pub fn get_depositors_page(env: &Env, offset: u32, limit: u32) -> Vec<Address> {
     let list = get_depositor_list(env);
     let len = list.len();
+    let capped_limit = limit.min(MAX_BATCH_SIZE);
     let mut page: Vec<Address> = Vec::new(env);
-    let end = (offset + limit).min(len);
+    let end = (offset + capped_limit).min(len);
     for i in offset..end {
         page.push_back(list.get(i).unwrap());
     }
